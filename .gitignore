@@ -1,0 +1,14 @@
+# deps
+node_modules/
+
+# secrets
+.env
+
+# local database
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+
+# local notes
+CLAUDE.md
