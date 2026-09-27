@@ -1,20 +1,25 @@
 import { Hono } from 'hono'
 import { bearerAuth } from 'hono/bearer-auth'
+import { cors } from 'hono/cors'
 import { HTTPException } from 'hono/http-exception'
 import { and, asc, eq, inArray, like, sql } from 'drizzle-orm'
 import { db } from './db'
 import { categories, groceries, recipes, shoppingList } from './db/schema'
 
 const USERS = process.env.ALLOWED_USERS!.split(',').map((u) => u.trim())
+const RECIPE_TYPES = ['breakfast', 'lunch', 'dinner', 'snack', 'spiceblend']
 
 const isText = (v: unknown): v is string => typeof v === 'string' && v.trim() !== ''
 const isIdList = (v: unknown): v is number[] => Array.isArray(v) && v.every(Number.isInteger)
+const isObjectList = (v: unknown): v is object[] =>
+  Array.isArray(v) && v.every((o) => typeof o === 'object' && o !== null && !Array.isArray(o))
 const allGroceriesExist = (ids: number[]) =>
   ids.length === 0 ||
   db.select().from(groceries).where(inArray(groceries.id, ids)).all().length === new Set(ids).size
 
 const app = new Hono()
 
+app.use('/api/*', cors({ origin: process.env.CORS_ORIGIN! }))
 app.use('/api/*', bearerAuth({ token: process.env.API_TOKEN! }))
 
 app.onError((err, c) => {
@@ -42,19 +47,8 @@ api.get('/', (c) => {
 
 api.post('/', async (c) => {
   const { name, category } = await c.req.json()
-  if (!isText(name) || !isText(category)) return c.json({ error: 'name and category required' }, 400)
+  if (!isText(name) || !Number.isInteger(category)) return c.json({ error: 'name and category id required' }, 400)
   return c.json(db.insert(groceries).values({ name: name.trim(), category }).returning().get(), 201)
-})
-
-api.patch('/:id', async (c) => {
-  const { name, category } = await c.req.json()
-  if ((name !== undefined && !isText(name)) || (category !== undefined && !isText(category)))
-    return c.json({ error: 'invalid name or category' }, 400)
-  const row = db.update(groceries)
-    .set({ name: name?.trim(), category })
-    .where(eq(groceries.id, Number(c.req.param('id'))))
-    .returning().get()
-  return row ? c.json(row) : c.json({ error: 'not found' }, 404)
 })
 
 api.delete('/:id', (c) => {
@@ -84,9 +78,9 @@ api.get('/list', (c) => {
   return c.json(
     db.select(listItem).from(shoppingList)
       .innerJoin(groceries, eq(shoppingList.grocery_id, groceries.id))
-      .innerJoin(categories, eq(groceries.category, categories.type))
+      .innerJoin(categories, eq(groceries.category, categories.id))
       .where(and(
-        category ? eq(groceries.category, category) : undefined,
+        category ? eq(groceries.category, Number(category)) : undefined,
         user ? eq(shoppingList.user, user) : undefined,
       ))
       .orderBy(asc(categories.sort_order), sql`${groceries.name} collate nocase`)
@@ -94,17 +88,10 @@ api.get('/list', (c) => {
   )
 })
 
-// Adds to the list; creates the grocery in the record first if the name is new.
 api.post('/list', async (c) => {
-  const { name, category, user } = await c.req.json()
-  if (!isText(name) || !USERS.includes(user)) return c.json({ error: 'name and valid user required' }, 400)
-  let grocery = db.select().from(groceries).where(sql`lower(${groceries.name}) = lower(${name.trim()})`).get()
-  if (!grocery) {
-    if (!isText(category)) return c.json({ error: 'category required for a new grocery' }, 400)
-    grocery = db.insert(groceries).values({ name: name.trim(), category }).returning().get()
-  }
-  const item = db.insert(shoppingList).values({ grocery_id: grocery.id, user }).returning().get()
-  return c.json({ id: item.id, grocery_id: grocery.id, name: grocery.name, category: grocery.category, user }, 201)
+  const { grocery_id, user } = await c.req.json()
+  if (!Number.isInteger(grocery_id) || !USERS.includes(user)) return c.json({ error: 'grocery_id and valid user required' }, 400)
+  return c.json(db.insert(shoppingList).values({ grocery_id, user }).returning().get(), 201)
 })
 
 api.delete('/list/:id', (c) => {
@@ -145,19 +132,21 @@ api.delete('/category/:id', (c) => {
 api.get('/recipe', (c) => c.json(db.select().from(recipes).orderBy(sql`${recipes.name} collate nocase`).all()))
 
 api.post('/recipe', async (c) => {
-  const { name, ingredients } = await c.req.json()
-  if (!isText(name) || !isIdList(ingredients) || !allGroceriesExist(ingredients))
-    return c.json({ error: 'name and existing grocery ids required' }, 400)
-  return c.json(db.insert(recipes).values({ name, ingredients }).returning().get(), 201)
+  const { name, type, country, ingredients, instructions } = await c.req.json()
+  if (!isText(name) || !RECIPE_TYPES.includes(type) || !isIdList(ingredients) || !allGroceriesExist(ingredients) ||
+      (country != null && !isText(country)) || (instructions != null && !isObjectList(instructions)))
+    return c.json({ error: 'name, valid type and existing grocery ids required; country text, instructions array of objects' }, 400)
+  return c.json(db.insert(recipes).values({ name, type, country, ingredients, instructions }).returning().get(), 201)
 })
 
 api.patch('/recipe/:id', async (c) => {
-  const { name, ingredients } = await c.req.json()
-  if ((name !== undefined && !isText(name)) ||
-      (ingredients !== undefined && (!isIdList(ingredients) || !allGroceriesExist(ingredients))))
-    return c.json({ error: 'invalid name or ingredients' }, 400)
+  const { name, type, country, ingredients, instructions } = await c.req.json()
+  if ((name !== undefined && !isText(name)) || (type !== undefined && !RECIPE_TYPES.includes(type)) ||
+      (ingredients !== undefined && (!isIdList(ingredients) || !allGroceriesExist(ingredients))) ||
+      (country != null && !isText(country)) || (instructions != null && !isObjectList(instructions)))
+    return c.json({ error: 'invalid name, type, country, ingredients or instructions' }, 400)
   const row = db.update(recipes)
-    .set({ name, ingredients })
+    .set({ name, type, country, ingredients, instructions })
     .where(eq(recipes.id, Number(c.req.param('id'))))
     .returning().get()
   return row ? c.json(row) : c.json({ error: 'not found' }, 404)

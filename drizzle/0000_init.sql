@@ -9,15 +9,18 @@ CREATE UNIQUE INDEX `categories_type_unique` ON `categories` (`type`);--> statem
 CREATE TABLE `groceries` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 	`name` text NOT NULL,
-	`category` text NOT NULL,
-	FOREIGN KEY (`category`) REFERENCES `categories`(`type`) ON UPDATE cascade ON DELETE restrict
+	`category` integer NOT NULL,
+	FOREIGN KEY (`category`) REFERENCES `categories`(`id`) ON UPDATE no action ON DELETE restrict
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `groceries_name_unique` ON `groceries` (lower("name"));--> statement-breakpoint
 CREATE TABLE `recipes` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 	`name` text NOT NULL,
-	`ingredients` text NOT NULL
+	`type` text NOT NULL,
+	`country` text,
+	`ingredients` text NOT NULL,
+	`instructions` text
 );
 --> statement-breakpoint
 CREATE TABLE `shopping_list` (

@@ -14,9 +14,9 @@ export const groceries = sqliteTable(
   {
     id: integer('id').primaryKey({ autoIncrement: true }),
     name: text('name').notNull(),
-    category: text('category')
+    category: integer('category')
       .notNull()
-      .references(() => categories.type, { onUpdate: 'cascade', onDelete: 'restrict' }),
+      .references(() => categories.id, { onDelete: 'restrict' }),
   },
   (t) => [uniqueIndex('groceries_name_unique').on(sql`lower(${t.name})`)],
 )
@@ -32,5 +32,8 @@ export const shoppingList = sqliteTable('shopping_list', {
 export const recipes = sqliteTable('recipes', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull(),
+  type: text('type').notNull(),
+  country: text('country'),
   ingredients: text('ingredients', { mode: 'json' }).$type<number[]>().notNull(),
+  instructions: text('instructions', { mode: 'json' }).$type<object[]>(),
 })

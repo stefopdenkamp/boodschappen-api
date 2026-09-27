@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "506f5dda-9f01-4a6b-ac89-409cb2ca342d",
+  "id": "bd75c778-ae73-4913-9db4-97dc6c3f4503",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "categories": {
@@ -69,7 +69,7 @@
         },
         "category": {
           "name": "category",
-          "type": "text",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
@@ -85,18 +85,18 @@
         }
       },
       "foreignKeys": {
-        "groceries_category_categories_type_fk": {
-          "name": "groceries_category_categories_type_fk",
+        "groceries_category_categories_id_fk": {
+          "name": "groceries_category_categories_id_fk",
           "tableFrom": "groceries",
           "tableTo": "categories",
           "columnsFrom": [
             "category"
           ],
           "columnsTo": [
-            "type"
+            "id"
           ],
           "onDelete": "restrict",
-          "onUpdate": "cascade"
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -120,11 +120,32 @@
           "notNull": true,
           "autoincrement": false
         },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "country": {
+          "name": "country",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "ingredients": {
           "name": "ingredients",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false
+        },
+        "instructions": {
+          "name": "instructions",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         }
       },
